@@ -29,16 +29,35 @@ transform = transforms.Compose([
 i = 0
 inputs = []
 
-for images in sorted(os.listdir('images')):
-    print(images)
-    image = Image.open('images/'+images)
+def get_class_images(class_name):
+    class_images = []
+    for image_path in sorted(os.listdir('images/' + class_name)):
+        image = Image.open('images/' + class_name + '/' + image_path)
+        image = transform(image)
+        class_images.append(image)
+    class_images = torch.stack(class_images).to('cuda')
+    return class_images
 
-    img_tensor = transform(image)
-    inputs.append(img_tensor)
+class_f_images = get_class_images('f')
+class_k_images = get_class_images('k')
+class_p_images = get_class_images('p')
+class_r_images = get_class_images('r')
 
-inputs = torch.stack(inputs).to('cuda')
+class_f_features = dinov2_vitl14_reg(class_f_images)
+class_k_features = dinov2_vitl14_reg(class_k_images)
+class_p_features = dinov2_vitl14_reg(class_p_images)
+class_r_features = dinov2_vitl14_reg(class_r_images)
 
-features = dinov2_vitl14_reg(inputs)
+# save features
+torch.save(class_f_features, 'class_f_features.pt')
+torch.save(class_k_features, 'class_k_features.pt')
+torch.save(class_p_features, 'class_p_features.pt')
+torch.save(class_r_features, 'class_r_features.pt')
+
+# load features
+class_f_features_load = torch.load('class_f_features.pt')
+print("class_f_features_load: ", class_f_features_load.shape)
+print("class_f_features: ", class_f_features.shape)
 
 def norm_center_norm(features):
     # L2 normalization
@@ -49,12 +68,16 @@ def norm_center_norm(features):
     features = features / features.norm(dim=-1, keepdim=True)
     return features
 
-features = norm_center_norm(features)
+class_f_features = norm_center_norm(class_f_features)
+class_k_features = norm_center_norm(class_k_features)
+class_p_features = norm_center_norm(class_p_features)
+class_r_features = norm_center_norm(class_r_features)
 
 # Nearest Class Mean
-class_1 = features[0:7].mean(dim=0)
-class_2 = features[10:17].mean(dim=0)
-class_3 = features[20:27].mean(dim=0)
+class_f_mean = class_f_features[0:17].mean(dim=0)
+class_k_mean = class_k_features[0:17].mean(dim=0)
+class_p_mean = class_p_features[0:17].mean(dim=0)
+class_r_mean = class_r_features[0:17].mean(dim=0)
 
 diff81 = torch.norm(features[8] - class_1,dim=-1)
 diff82 = torch.norm(features[8] - class_2,dim=-1)
