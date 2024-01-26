@@ -206,7 +206,7 @@ def getimg(classe, sample=None, filepath='', directory=''):
             idx = sample
         print("idx: ", idx)
         print("classe: ", classe)
-        filename=src[idx+10*classe][0]
+        filename=src[idx+20*classe][0]
         im = Image.open(os.path.join(directory,filename))
         return im
 
