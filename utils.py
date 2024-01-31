@@ -208,6 +208,8 @@ def getimg(classe, sample=None, filepath='', directory=''):
         print("classe: ", classe)
         filename=src[idx+20*classe][0]
         im = Image.open(os.path.join(directory,filename))
+        im = torchvision.transforms.Resize((256,256))(im)
+        im = torchvision.transforms.CenterCrop((224,224))(im)
         return im
 
 def return_annotation_boxes(classe, sample, n_augmentation, xybox, args, crops=False, features_path='', filepath='./test.csv', directory='./images'):
