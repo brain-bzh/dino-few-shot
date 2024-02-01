@@ -2,113 +2,112 @@ import torch
 from PIL import Image
 import torchvision.transforms as transforms
 import os
-# from utils import visualize_few_shot_space
+
 from utils import hover_few_shot_space
 import argparse
 
-# download images from https://partage.imt.fr/index.php/s/EJagF3c5pa22C4M
-#!wget https://partage.imt.fr/index.php/s/EJagF3c5pa22C4M/download
-
+# download images from https://partage.imt.fr/index.php/s/3pJAnmkwrR7pntG
+# !wget https://partage.imt.fr/index.php/s/3pJAnmkwrR7pntG/download -O images.zip
+# !unzip images.zip
+# download features from https://partage.imt.fr/index.php/s/rGfacYEyAK2ZXNz
+# !wget https://partage.imt.fr/index.php/s/rGfacYEyAK2ZXNz/download -O features.zip
+# !unzip features.zip
 
 # parse shots and queries
 parser = argparse.ArgumentParser()
-parser.add_argument('--nb_ways', type=int, default=3)
-parser.add_argument('--nb_shots', type=int, default=18)
-parser.add_argument('--nb_queries', type=int, default=2)
+parser.add_argument('--generate-features', action='store_true')
+parser.add_argument('--nb-ways', type=int, default=3)
+parser.add_argument('--nb-shots', type=int, default=18)
+parser.add_argument('--nb-queries', type=int, default=2)
 args = parser.parse_args()
 
+assert args.nb_ways == 3, 'Only 3 ways is supported for now'
+assert args.nb_shots + args.nb_queries <= 20, 'Queries + Shots should be smaller than 20 as there are only 20 images per class'
 
-# torch.set_default_device('cuda')
+if args.generate_features:
+    assert torch.cuda.is_available(), 'CUDA is not available but needed to generate features'
+    assert torch.cuda.device_count() > 0, 'CUDA device is not available but needed to generate features'
 
-# dinov2_vitl14_reg = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14_reg')
 
 inputs = []
+classes_names = ['f', 'k', 'p']
 
-transform = transforms.Compose([
+# get images from each class
+def get_class_images(class_name):
+
+    transform = transforms.Compose([
     transforms.Resize(256, antialias=True),
     transforms.CenterCrop(224),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-])
 
-    # def get_class_images(class_name):
-    #     class_images = []
-    #     for image_path in sorted(os.listdir('images/' + class_name)):
-    #         image = Image.open('images/' + class_name + '/' + image_path)
-    #         image = transform(image)
-    #         class_images.append(image)
-    #     class_images = torch.stack(class_images).to('cuda')
-    #     return class_images
+    ])
 
-    # class_f_images = get_class_images('f')
-    # class_k_images = get_class_images('k')
-    # class_p_images = get_class_images('p')
-    # class_r_images = get_class_images('r')
+    class_images = []
+    for image_path in sorted(os.listdir('images/' + class_name)):
+        image = Image.open('images/' + class_name + '/' + image_path)
+        image = transform(image)
+        class_images.append(image)
+    class_images = torch.stack(class_images)
+    return class_images
 
-# class_f_features = dinov2_vitl14_reg(class_f_images)
-# class_k_features = dinov2_vitl14_reg(class_k_images)
-# class_p_features = dinov2_vitl14_reg(class_p_images)
-# class_r_features = dinov2_vitl14_reg(class_r_images)
+# load dino, generate features and save them on disk
+if args.generate_features:
+    dinov2_vitl14_reg = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitl14_reg').to('cuda')
 
-# # save features
-# torch.save(class_f_features, 'class_f_features.pt')
-# torch.save(class_k_features, 'class_k_features.pt')
-# torch.save(class_p_features, 'class_p_features.pt')
-# torch.save(class_r_features, 'class_r_features.pt')
+    class_f_features = dinov2_vitl14_reg(get_class_images('f').to('cuda'))
+    class_k_features = dinov2_vitl14_reg(get_class_images('k').to('cuda'))
+    class_p_features = dinov2_vitl14_reg(get_class_images('p').to('cuda'))
+    class_r_features = dinov2_vitl14_reg(get_class_images('r').to('cuda'))
 
-# load features
+    # save features
+    torch.save(class_f_features, 'features/class_f_features.pt')
+    torch.save(class_k_features, 'features/class_k_features.pt')
+    torch.save(class_p_features, 'features/class_p_features.pt')
+    torch.save(class_r_features, 'features/class_r_features.pt')
+
+# load features from disk
 class_f_features = torch.load('features/class_f_features.pt', map_location=torch.device('cpu'))
 class_k_features = torch.load('features/class_k_features.pt', map_location=torch.device('cpu'))
 class_p_features = torch.load('features/class_p_features.pt', map_location=torch.device('cpu'))
-class_r_features = torch.load('features/class_r_features.pt', map_location=torch.device('cpu'))
-print("class_f_features_load: ", class_f_features.shape)
 
+# only keep appropriate number of shots + queries
+class_f_features = class_f_features[0:args.nb_shots + args.nb_queries]
+class_k_features = class_k_features[0:args.nb_shots + args.nb_queries]
+class_p_features = class_p_features[0:args.nb_shots + args.nb_queries]
+
+# project features on the unit sphere and center them
 def norm_center_norm(features):
-    # L2 normalization
     features = features / features.norm(dim=-1, keepdim=True)
-    # centering
     features = features - features.mean(dim=-1, keepdim=True)
-    # L2 normalization
     features = features / features.norm(dim=-1, keepdim=True)
     return features
 
 class_f_features = norm_center_norm(class_f_features)
 class_k_features = norm_center_norm(class_k_features)
 class_p_features = norm_center_norm(class_p_features)
-class_r_features = norm_center_norm(class_r_features)
 
-# only keep shots + queries
-class_f_features = class_f_features[0:args.nb_shots + args.nb_queries]
-class_k_features = class_k_features[0:args.nb_shots + args.nb_queries]
-class_p_features = class_p_features[0:args.nb_shots + args.nb_queries]
-class_r_features = class_r_features[0:args.nb_shots + args.nb_queries]
-
-
-# Nearest Class Mean
+# nearest class mean on shots
 class_f_mean = class_f_features[0:args.nb_shots].mean(dim=0)
 class_k_mean = class_k_features[0:args.nb_shots].mean(dim=0)
 class_p_mean = class_p_features[0:args.nb_shots].mean(dim=0)
-class_r_mean = class_r_features[0:args.nb_shots].mean(dim=0)
 
-features = [class_f_features, class_k_features, class_p_features, class_r_features]
+features = [class_f_features, class_k_features, class_p_features]
 
-
-
+# compute and display distances between queries and centroids
 c = 0
 for feature in features :
-    print('Class number: ' + str(c))
+    print('Class: ' + classes_names[c])
     for q in range(args.nb_queries):
-        print('Query number: ' + str(q))
-        print('Distance with f centroid is: ', torch.norm(feature[args.nb_shots + q]- class_f_mean, dim=-1))
-        print('Distance with k centroid is: ', torch.norm(feature[args.nb_shots + q]- class_k_mean, dim=-1))
-        print('Distance with p centroid is: ', torch.norm(feature[args.nb_shots + q]- class_p_mean, dim=-1))
-        print('Distance with r centroid is: ', torch.norm(feature[args.nb_shots + q]- class_r_mean, dim=-1))
-
+        distance_f = torch.norm(feature[args.nb_shots + q]- class_f_mean, dim=-1).item()
+        distance_k = torch.norm(feature[args.nb_shots + q]- class_k_mean, dim=-1).item()
+        distance_p = torch.norm(feature[args.nb_shots + q]- class_p_mean, dim=-1).item()
+        distance_f = round(distance_f, 2)
+        distance_k = round(distance_k, 2)
+        distance_p = round(distance_p, 2)
+        print('Distances query', q, 'from class', classes_names[c],
+              'with f, k, p centroids: ', distance_f, distance_k, distance_p)
     c = c + 1
-
-feats = torch.stack((class_f_features,class_k_features, class_p_features))
-
-print(feats.shape)
 
 def reduce_dimension(feats):
     """
@@ -120,34 +119,26 @@ def reduce_dimension(feats):
     """
     dim = feats.shape[-1] # 1024
 
-    # Compute the centroids of each class
+    # compute the centroids of each class
     supports = feats[:, :args.nb_shots]
     means = torch.mean(supports, dim=1)
 
-    # Get Two directions of the centroids.
+    # get two directions of the centroids.
     perm = torch.arange(means.shape[0])-1
     directions = (means-means[perm])[:-1]
 
-    # Get the QR decomposition from the directions of the centroids
+    # get the QR decomposition from the directions of the centroids
     Q, R = torch.linalg.qr(directions.T)
-    # Project Q on the data
+
+    # project Q on the data
     reduced_features = torch.matmul(feats, Q)
 
     return reduced_features
 
+feats = torch.stack((class_f_features,class_k_features, class_p_features))
 reduced_features = reduce_dimension(feats)
-print(reduced_features.shape)
-
-
-run_classes = [0,1,2]
-run_indices = [list(range(20)),list(range(20)),list(range(20))]
-run_classes = torch.tensor(run_classes)
-run_indices = torch.tensor(run_indices)
 
 # remove grad from reduced_features
 reduced_features = reduced_features.detach()
 
-print("reduced features: ", reduced_features.shape)
-# visualize_few_shot_space(reduced_features, run_classes, run_indices, args)
-
-hover_few_shot_space(reduced_features, run_classes, run_indices, args, images_path="images/")
+hover_few_shot_space(reduced_features, args, images_path="images/")

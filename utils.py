@@ -6,7 +6,6 @@ import os
 import csv
 import torchvision.transforms
 from PIL import Image
-from IPython.core.display import display, HTML
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import warnings
 warnings.filterwarnings("ignore")
@@ -103,8 +102,7 @@ def getimg(classe, sample=None, filepath='', directory=''):
         else:
             if type(sample) == torch.Tensor : sample = sample.item()
             idx = sample
-        print("idx: ", idx)
-        print("classe: ", classe)
+
         filename=src[idx+20*classe][0]
         im = Image.open(os.path.join(directory,filename))
         im = torchvision.transforms.Resize((256,256))(im)
@@ -120,7 +118,12 @@ def return_annotation_boxes(classe, sample, n_augmentation, xybox, args, crops=F
     annotBox = AnnotationBbox(im, (0,0), xybox=xybox, xycoords='data',boxcoords="offset points",  pad=0.3,  arrowprops=dict(arrowstyle="->"))
     return [annotBox]
 
-def hover_few_shot_space(reduced_features, run_classes, run_indices, args, figsize=(25, 15), query_start=0, query_end=2, plot_support=True, crops=False, images_path='./images/'):
+
+def hover_few_shot_space(reduced_features, args, figsize=(25, 15), query_start=0, query_end=2, plot_support=True, crops=False, images_path='./images/'):
+    run_classes = [0,1,2]
+    run_indices = [list(range(20)),list(range(20)),list(range(20))]
+    run_classes = torch.tensor(run_classes)
+    run_indices = torch.tensor(run_indices)
 
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111)
@@ -178,7 +181,11 @@ def hover_few_shot_space(reduced_features, run_classes, run_indices, args, figsi
                 list_image_hover = list_image_hover + return_annotation_boxes(c_ind, s_ind, 50, xybox, args, features_path=images_path, crops=crops)
 
         query = reduced_features[c, args.nb_shots:]
-        print("query: ", query.shape)
+
+        list_image_hover = list_image_hover + return_annotation_boxes(c_ind, s_ind, 50, xybox, args, features_path=images_path, crops=crops)
+
+        query = reduced_features[c, args.nb_shots:]
+
         for q in range(query.shape[0]):
             X.append(query[q, :, 0].cpu())
             Y.append(query[q, :, 1].cpu())
