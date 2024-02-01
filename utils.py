@@ -104,6 +104,9 @@ def getimg(classe, sample=None, filepath='', directory=''):
             idx = sample
 
         filename=src[idx+20*classe][0]
+        print("idx", idx)
+        print("classe", classe)
+        print(filename)
         im = Image.open(os.path.join(directory,filename))
         im = torchvision.transforms.Resize((256,256))(im)
         im = torchvision.transforms.CenterCrop((224,224))(im)
@@ -181,11 +184,6 @@ def hover_few_shot_space(reduced_features, args, figsize=(25, 15), query_start=0
                 list_image_hover = list_image_hover + return_annotation_boxes(c_ind, s_ind, 50, xybox, args, features_path=images_path, crops=crops)
 
         query = reduced_features[c, args.nb_shots:]
-
-        list_image_hover = list_image_hover + return_annotation_boxes(c_ind, s_ind, 50, xybox, args, features_path=images_path, crops=crops)
-
-        query = reduced_features[c, args.nb_shots:]
-
         for q in range(query.shape[0]):
             X.append(query[q, :, 0].cpu())
             Y.append(query[q, :, 1].cpu())
