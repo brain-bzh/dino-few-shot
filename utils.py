@@ -208,7 +208,8 @@ def hover_few_shot_space(reduced_features, args, figsize=(25, 15), query_start=0
     def hover(event):
         # if the mouse is over the scatter points
         if line.contains(event)[0]:
-            ind, = line.contains(event)[1]["ind"]
+            ind = line.contains(event)[1]["ind"]
+            ind = ind[0]
             w,h = fig.get_size_inches()*fig.dpi
             ws = (event.x > w/2.)*-1 + (event.x <= w/2.)
             hs = (event.y > h/2.)*-1 + (event.y <= h/2.)
